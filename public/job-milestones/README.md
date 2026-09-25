@@ -1,9 +1,12 @@
 # Job Milestone Report
 
-Pulls jobs completed on the monday.com **Shop Updates** board in a date range
-(default: year to date), follows each job out to its linked boards (Project
-Managers, Opportunities, Invoicing, Engineering Log, Shipping) and matches its
-**Panda 3 - Scheduling** station records by job number.
+Data comes from the n8n **Job Milestones** data table (synced from monday.com
+every night at 00:05; see the main README), so loading the page doesn't query
+monday.com. The sync takes jobs completed on the **Shop Updates** board,
+follows each one out to its linked boards (Project Managers, Opportunities,
+Invoicing, Engineering Log, Shipping) and matches its **Panda 3 - Scheduling**
+station records by job number. The page shows the jobs completed in the chosen
+date range (default: year to date).
 
 - **Summary**: jobs, average and median days per month for each measure
   (opportunity to completed, deal won to deposit, engineering to first

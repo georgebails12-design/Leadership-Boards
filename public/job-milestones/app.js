@@ -352,16 +352,10 @@
     if (!from || !to || from > to) { setStatus("Pick a From date on or before the To date.", "error"); return; }
     $("load").disabled = true;
     $("download").disabled = true;
-    setStatus("Loading from monday.com…");
+    setStatus("Loading…");
     try {
-      let jobCount = 0;
-      let stationCount = 0;
-      const progress = () => setStatus(`Loading from monday.com… ${jobCount} jobs, ${stationCount} station records`);
-      const [items, panda3] = await Promise.all([
-        R.fetchJobs(from, to, (n) => { jobCount = n; progress(); }),
-        R.fetchPanda3((n) => { stationCount = n; progress(); }),
-      ]);
-      report = R.buildReport(items, panda3);
+      const { jobs, syncedAt } = await R.fetchStoredJobs(from, to);
+      report = R.buildReportFromJobs(jobs);
       range = { from, to };
       jobsById = new Map(report.rows.map((j) => [j.id, j]));
       renderSummary();
@@ -370,7 +364,8 @@
       $("tabs").hidden = false;
       showTab("summary");
       $("download").disabled = !report.rows.length;
-      setStatus(`Loaded ${report.rows.length} jobs (${items.length} including service) at ${new Date().toLocaleTimeString()}.`, "ok");
+      const synced = syncedAt ? ` Data last synced from monday.com ${new Date(syncedAt).toLocaleString()}.` : "";
+      setStatus(`Loaded ${report.rows.length} jobs (${jobs.length} including service).${synced}`, "ok");
     } catch (err) {
       if (err && err.signIn) { showSignedIn(false); setStatus(""); return; }
       const msg = err && err.message ? err.message : String(err);

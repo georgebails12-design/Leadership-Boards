@@ -3,13 +3,13 @@
 #   curl -fsSL https://raw.githubusercontent.com/georgebails12-design/Leadership-Boards/main/deploy/install.sh | bash
 #
 # - installs Node.js if it's missing
-# - asks for the monday.com API token and the team password (stored only in
-#   /etc/leadership-boards.env, readable by root only)
+# - asks for the n8n API key (the "Leadership Boards API key" credential in n8n)
+#   and the team password, stored only in /etc/leadership-boards.env (root only)
 # - installs the leadership-boards service on 127.0.0.1:8040 and an updater that
 #   pulls new commits from GitHub every 2 minutes (same pattern as the PO app)
 # - adds boards.pandawd.online to nginx (with an HTTPS certificate) or Caddy
 #
-# Re-running is safe. To change the token or password later:
+# Re-running is safe. To change the key or password later:
 #   curl -fsSL .../deploy/install.sh | bash -s -- --reset-secrets
 set -euo pipefail
 
@@ -53,27 +53,27 @@ fi
 # --- secrets ---------------------------------------------------------------
 if [ ! -f "$ENV_FILE" ] || [ -n "$RESET_SECRETS" ]; then
   say "Secrets (typed input is hidden and stored only in $ENV_FILE)"
-  read -r -s -p "monday.com API token: " MONDAY_TOKEN </dev/tty; echo
+  read -r -s -p "n8n API key (same value as the X-Boards-Key credential in n8n): " N8N_KEY </dev/tty; echo
   read -r -s -p "Team password for the site: " TEAM_PASSWORD </dev/tty; echo
-  [ -n "$MONDAY_TOKEN" ] && [ -n "$TEAM_PASSWORD" ] || { echo "Both are required."; exit 1; }
+  [ -n "$N8N_KEY" ] && [ -n "$TEAM_PASSWORD" ] || { echo "Both are required."; exit 1; }
   SESSION_SECRET="$(head -c 48 /dev/urandom | base64 | tr -d '\n/+=')"
   umask 077
   cat > "$ENV_FILE" <<EOF
-MONDAY_API_TOKEN=$MONDAY_TOKEN
+N8N_API_KEY=$N8N_KEY
 REPORT_PASSWORD=$TEAM_PASSWORD
 SESSION_SECRET=$SESSION_SECRET
 PORT=$PORT
 HOST=127.0.0.1
 EOF
   chmod 600 "$ENV_FILE"
-  unset MONDAY_TOKEN TEAM_PASSWORD
+  unset N8N_KEY TEAM_PASSWORD
   echo "Saved. Everyone will need to sign in again."
 fi
 
 # --- service ---------------------------------------------------------------
 cat > /etc/systemd/system/leadership-boards.service <<UNIT
 [Unit]
-Description=Leadership Boards (monday.com reports)
+Description=Leadership Boards (leadership reports)
 After=network-online.target
 Wants=network-online.target
 

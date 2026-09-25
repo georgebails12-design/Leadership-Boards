@@ -178,6 +178,25 @@
     return data.data;
   }
 
+  /**
+   * Jobs completed between from and to (YYYY-MM-DD) as stored by the nightly
+   * n8n sync: { jobs: [jobRow()...], syncedAt }. No monday.com calls.
+   */
+  async function fetchStoredJobs(from, to, fetchImpl) {
+    const doFetch = fetchImpl || root.fetch.bind(root);
+    const qs = `from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+    const response = await doFetch(`/api/jobs?${qs}`, { credentials: "same-origin" });
+    if (response.status === 401) {
+      const err = new Error("Please sign in again.");
+      err.signIn = true;
+      throw err;
+    }
+    let data = null;
+    try { data = await response.json(); } catch (e) { /* not JSON */ }
+    if (!response.ok) throw new Error((data && data.error) || `The server returned ${response.status}`);
+    return { jobs: (data && data.jobs) || [], syncedAt: (data && data.syncedAt) || null };
+  }
+
   /** All Shop Updates items with Date Completed between from and to (YYYY-MM-DD). */
   async function fetchJobs(from, to, onProgress, fetchImpl) {
     const pageSize = 50;
@@ -484,7 +503,12 @@
   /** Everything the page shows, from the raw monday items. */
   function buildReport(items, panda3Items) {
     const index = indexPanda3(panda3Items);
-    const all = items.map((item) => jobRow(item, index));
+    return buildReportFromJobs(items.map((item) => jobRow(item, index)));
+  }
+
+  /** Everything the page shows, from jobRow() results (as stored by the n8n sync). */
+  function buildReportFromJobs(jobs) {
+    const all = jobs.map((j) => ({ ...j }));
     const rows = all.filter((j) => JOB_TYPES.includes(j.type))
       .sort((a, b) => ((a.completed || "9999") + a.job < (b.completed || "9999") + b.job ? -1 : 1));
     const skipped = all.filter((j) => !JOB_TYPES.includes(j.type));
@@ -553,7 +577,8 @@
 
   const api = {
     MILESTONES, DURATIONS, STATIONS, GROUPS, NO_ENGINEERING, ORDER_EXEMPT,
-    fetchJobs, fetchPanda3, itemFields, jobRow, durations, stats, buildReport, reportGroup,
+    fetchStoredJobs, fetchJobs, fetchPanda3, itemFields, indexPanda3, jobRow, durations, stats,
+    buildReport, buildReportFromJobs, reportGroup,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.MilestoneReport = api;

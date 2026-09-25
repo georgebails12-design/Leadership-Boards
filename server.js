@@ -1,18 +1,22 @@
 /*
  * Leadership Boards server.
  *
- * Serves the report pages in public/ and proxies read-only GraphQL queries to
- * monday.com, so the monday API token stays on the server. Viewers sign in
- * with a shared team password.
+ * Serves the report pages in public/ and signs viewers in with a shared team
+ * password. Report data comes from n8n (GET /api/jobs), which keeps a nightly
+ * synced copy of the monday.com data in an n8n data table, so page loads don't
+ * query monday. If MONDAY_API_TOKEN is set, POST /api/monday also proxies
+ * read-only GraphQL queries to monday.com for pages that need live data.
  *
  * Environment:
- *   MONDAY_API_TOKEN   monday.com API token (required)
+ *   N8N_API_KEY        secret sent to the n8n webhooks in the X-Boards-Key header (required)
+ *   N8N_JOBS_URL       n8n webhook returning stored jobs (default https://n8n.pandawd.online/webhook/leadership-boards/jobs)
+ *   MONDAY_API_TOKEN   monday.com API token (optional; enables /api/monday)
  *   REPORT_PASSWORD    team password for the site (required)
  *   SESSION_SECRET     secret used to sign sign-in cookies (required, long random string)
  *   PORT               port to listen on (default 3000)
  *   HOST               address to listen on (default 127.0.0.1: only the local reverse proxy can reach it)
  *   SESSION_HOURS      how long a sign-in lasts (default 720 = 30 days)
- *   CACHE_SECONDS      how long identical monday queries are cached (default 300)
+ *   CACHE_SECONDS      how long identical data requests are cached (default 300)
  *
  * No npm dependencies: `node server.js`.
  */
@@ -26,6 +30,8 @@ const crypto = require("crypto");
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || "127.0.0.1";
 const MONDAY_API_TOKEN = process.env.MONDAY_API_TOKEN || "";
+const N8N_API_KEY = process.env.N8N_API_KEY || "";
+const N8N_JOBS_URL = process.env.N8N_JOBS_URL || "https://n8n.pandawd.online/webhook/leadership-boards/jobs";
 const REPORT_PASSWORD = process.env.REPORT_PASSWORD || "";
 const SESSION_SECRET = process.env.SESSION_SECRET || "";
 const SESSION_HOURS = Number(process.env.SESSION_HOURS || 720);
@@ -34,7 +40,7 @@ const PUBLIC_DIR = path.join(__dirname, "public");
 const MONDAY_URL = process.env.MONDAY_API_URL || "https://api.monday.com/v2"; // override only for testing
 const COOKIE = "lb_session";
 
-for (const [name, value] of Object.entries({ MONDAY_API_TOKEN, REPORT_PASSWORD, SESSION_SECRET })) {
+for (const [name, value] of Object.entries({ N8N_API_KEY, REPORT_PASSWORD, SESSION_SECRET })) {
   if (!value) {
     console.error(`Missing required environment variable ${name}`);
     process.exit(1);
@@ -139,6 +145,8 @@ function isReadOnly(query) {
   return !/\b(mutation|subscription)\b/i.test(withoutStrings);
 }
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
 const cache = new Map();
 function cacheGet(key) {
   const hit = cache.get(key);
@@ -176,8 +184,36 @@ async function handleApi(req, res, pathname) {
     return send(res, 200, { signedIn: false }, { "Set-Cookie": sessionCookie("", 0, req) });
   }
 
+  if (pathname === "/api/jobs" && req.method === "GET") {
+    if (!validSession(req)) return send(res, 401, { error: "Please sign in." });
+    const params = new URL(req.url, "http://localhost").searchParams;
+    const from = params.get("from") || "";
+    const to = params.get("to") || "";
+    if (!ISO_DATE.test(from) || !ISO_DATE.test(to)) return send(res, 400, { error: "from and to must be YYYY-MM-DD." });
+
+    const key = `jobs:${from}:${to}`;
+    const cached = cacheGet(key);
+    if (cached) return send(res, 200, cached, { "Content-Type": "application/json; charset=utf-8", "X-Cache": "hit" });
+    try {
+      const upstream = await fetch(`${N8N_JOBS_URL}?from=${from}&to=${to}`, {
+        headers: { "X-Boards-Key": N8N_API_KEY, Accept: "application/json" },
+      });
+      const text = await upstream.text();
+      if (!upstream.ok) {
+        console.error(`n8n jobs request failed: ${upstream.status} ${text.slice(0, 200)}`);
+        return send(res, 502, { error: `The data service returned ${upstream.status}.` });
+      }
+      cacheSet(key, text);
+      return send(res, 200, text, { "Content-Type": "application/json; charset=utf-8" });
+    } catch (err) {
+      console.error("n8n jobs request failed:", err.message);
+      return send(res, 502, { error: "Couldn't reach the data service." });
+    }
+  }
+
   if (pathname === "/api/monday" && req.method === "POST") {
     if (!validSession(req)) return send(res, 401, { error: "Please sign in." });
+    if (!MONDAY_API_TOKEN) return send(res, 404, { error: "Live monday.com queries are turned off." });
     let body;
     try { body = JSON.parse(await readBody(req)); } catch (e) { return send(res, 400, { error: "Bad request." }); }
     if (!body || typeof body.query !== "string") return send(res, 400, { error: "Missing query." });
