@@ -34,7 +34,7 @@ tick "Remember on this computer". No job data is stored in this repository.
 ## Hosting
 
 Part of the Leadership Boards GitHub Pages site, at
-`https://georgebails12-design.github.io/leadership-boards/job-milestones/`.
+`https://georgebails12-design.github.io/Leadership-Boards/job-milestones/`.
 To run locally: `python -m http.server` in the repository root and open
 http://localhost:8000/job-milestones/.
 

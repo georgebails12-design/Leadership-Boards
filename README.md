@@ -11,4 +11,4 @@ or company data are stored in this repository.
 ## Publishing
 
 Settings → Pages → Build and deployment → Deploy from a branch → `main` / `/ (root)`.
-The site is then at `https://georgebails12-design.github.io/leadership-boards/`.
+The site is then at `https://georgebails12-design.github.io/Leadership-Boards/`.
