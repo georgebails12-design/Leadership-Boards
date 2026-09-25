@@ -9,8 +9,10 @@
 (function (root) {
   "use strict";
 
-  const API_URL = "https://api.monday.com/v2";
+  const API_URL = "/api/monday"; // the server adds the monday.com token
+  const ITEM_URL = "https://panda-windows-and-doors.monday.com/boards/8203086442/pulses/";
   const SHOP_UPDATES_BOARD = "8203086442";
+  const PANDA3_BOARD = "18418008068";
   const SHOP_DATE_COMPLETED = "date_mks3bbfa";
   const SHOP_CUSTOMER = "text_1__1";
   const SHOP_JOB_TYPE = "status_1_mkmq3t6v";
@@ -40,6 +42,21 @@
     final: "date_mm4dbh1w",
     panda1: "date_mm4d2hj",
   };
+
+  // Panda 3 - Scheduling stations, in shop order. Each Panda 3 item carries the
+  // dates of the stations it has been through; "start"/"done" are column ids.
+  const STATIONS = [
+    { key: "pull", name: "Pull", start: "date_mm4dabjm", done: "date_mm4c91rw" },
+    { key: "polish", name: "Polish", start: "date_mm4dw8k", done: "date_mm4c2yak" },
+    { key: "vendor", name: "Finish vendor (sent to received)", start: "date_mm4etv6z", done: "date_mm4ecvmp", vendor: true },
+    { key: "bending", name: "Bending", start: "date_mm4ejn65", done: "date_mm4e47e8" },
+    { key: "cut", name: "Cut/CNC", start: "date_mm4d1kg1", done: "date_mm4cjfw6" },
+    { key: "inspection", name: "Inspection", start: "date_mm4dm9tw", done: "date_mm4cqrcx" },
+    { key: "prep", name: "Prep", start: "date_mm4d51qv", done: "date_mm4cfa4j" },
+    { key: "powder", name: "Powder coat", start: "date_mm4d7fsx", done: "date_mm4ce57n" },
+    { key: "final", name: "Final inspection", start: "date_mm4dpz91", done: "date_mm4dbh1w" },
+    { key: "panda1", name: "Sent to Panda 1", start: null, done: "date_mm4d2hj" },
+  ];
 
   // [milestone, source, key] in the order a job should move through them
   const MILESTONES = [
@@ -108,8 +125,9 @@
   }
 
   function itemFields() {
-    const inner = ["date7__1", "date__1", "date_mkxmrrgq", PL_JOB_TO_FLOOR,
-      ...Object.values(PM_LINKS), ...Object.values(PANDA3)];
+    const stationCols = STATIONS.flatMap((s) => [s.start, s.done]).filter(Boolean);
+    const inner = [...new Set(["date7__1", "date__1", "date_mkxmrrgq", PL_JOB_TO_FLOOR,
+      ...Object.values(PM_LINKS), ...Object.values(PANDA3), ...stationCols])];
     const leaf = MILESTONES
       .filter(([, source, key]) => ["opp", "inv", "eng"].includes(source) && key !== "created")
       .map(([, , key]) => key)
@@ -135,15 +153,23 @@
       }`;
   }
 
-  async function mondayQuery(token, query, variables, fetchImpl) {
+  async function mondayQuery(query, variables, fetchImpl) {
     const doFetch = fetchImpl || root.fetch.bind(root);
     const response = await doFetch(API_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: token, "API-Version": "2025-04" },
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query, variables: variables || {} }),
     });
+    if (response.status === 401) {
+      const err = new Error("Please sign in again.");
+      err.signIn = true;
+      throw err;
+    }
     if (!response.ok) {
-      throw new Error(`monday.com returned ${response.status}${response.status === 401 ? " (check the API token)" : ""}`);
+      let detail = "";
+      try { detail = (await response.json()).error || ""; } catch (e) { /* not JSON */ }
+      throw new Error(detail || `The server returned ${response.status}`);
     }
     const data = await response.json();
     if (data.errors && data.errors.length) {
@@ -153,10 +179,10 @@
   }
 
   /** All Shop Updates items with Date Completed between from and to (YYYY-MM-DD). */
-  async function fetchJobs(token, from, to, onProgress, fetchImpl) {
+  async function fetchJobs(from, to, onProgress, fetchImpl) {
     const pageSize = 50;
     const fields = itemFields();
-    const first = await mondayQuery(token, `
+    const first = await mondayQuery(`
       query ($board: ID!, $from: String!, $to: String!) {
         boards(ids: [$board]) {
           items_page(limit: ${pageSize}, query_params: {rules: [
@@ -169,7 +195,7 @@
     const items = page.items.slice();
     if (onProgress) onProgress(items.length);
     while (page.cursor) {
-      const next = await mondayQuery(token, `
+      const next = await mondayQuery(`
         query ($cursor: String!) {
           next_items_page(limit: ${pageSize}, cursor: $cursor) { cursor items { ${fields} } }
         }`, { cursor: page.cursor }, fetchImpl);
@@ -178,6 +204,51 @@
       if (onProgress) onProgress(items.length);
     }
     return items;
+  }
+
+  /**
+   * Every Panda 3 - Scheduling item with its station dates. Only a minority of
+   * jobs are linked to these from Shop Updates, so they are matched to jobs by
+   * job number instead (see jobRow).
+   */
+  async function fetchPanda3(onProgress, fetchImpl) {
+    const cols = quoted([...new Set(STATIONS.flatMap((s) => [s.start, s.done]).filter(Boolean))]);
+    const fields = `id name created_at column_values(ids: [${cols}]) { id text }`;
+    const first = await mondayQuery(`
+      query ($board: ID!) { boards(ids: [$board]) { items_page(limit: 500) { cursor items { ${fields} } } } }`,
+      { board: PANDA3_BOARD }, fetchImpl);
+    let page = first.boards[0].items_page;
+    const items = page.items.slice();
+    if (onProgress) onProgress(items.length);
+    while (page.cursor) {
+      const next = await mondayQuery(`
+        query ($cursor: String!) { next_items_page(limit: 500, cursor: $cursor) { cursor items { ${fields} } } }`,
+        { cursor: page.cursor }, fetchImpl);
+      page = next.next_items_page;
+      items.push(...page.items);
+      if (onProgress) onProgress(items.length);
+    }
+    return items;
+  }
+
+  /** Job number a name starts with ("91599 / 3087" -> "91599"); null for others. */
+  function jobNumber(name) {
+    const match = /^\s*S?(\d{5,})/.exec(name || "");
+    return match ? match[1] : null;
+  }
+
+  // Service records ("89367-S", "87636S1") are not production passes for the job
+  const SERVICE_NAME_RE = /^\s*\d{5,}[\s-]*S\d*\b|^\s*S\d{5,}/i;
+
+  function indexPanda3(items) {
+    const index = new Map();
+    for (const item of items || []) {
+      const number = jobNumber(item.name);
+      if (!number || SERVICE_NAME_RE.test(item.name)) continue;
+      if (!index.has(number)) index.set(number, []);
+      index.get(number).push(item);
+    }
+    return index;
   }
 
   // --------------------------------------------------------------- milestones
@@ -205,10 +276,12 @@
     return a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0;
   }
 
-  function jobRow(shop) {
+  function jobRow(shop, panda3Index) {
     const cols = columns(shop);
     const pm = linkedItems(cols, SHOP_TO_PM)[0] || {};
     const pmCols = columns(pm);
+    const completed = ymd(colText(cols, SHOP_DATE_COMPLETED));
+    const floor = ymd(colText(pmCols, "date__1")) || ymd(colText(pmCols, PL_JOB_TO_FLOOR));
 
     const linked = {};
     const single = {};
@@ -223,7 +296,20 @@
       return da < db ? -1 : da > db ? 1 : byCreated(a, b);
     });
 
-    const passes = linkedItems(cols, SHOP_TO_PANDA3);
+    // Panda 3 passes: linked items plus same-number items dated within this job's
+    // time on the floor (so an older job with the same number isn't mixed in)
+    const passes = linkedItems(cols, SHOP_TO_PANDA3).slice();
+    const seenPass = new Set(passes.map((p) => p.id));
+    const lo = floor ? dayNumber(floor) - 14 : null;
+    const hi = completed ? dayNumber(completed) + 30 : null;
+    for (const p of (panda3Index && panda3Index.get(jobNumber(shop.name))) || []) {
+      if (seenPass.has(p.id)) continue;
+      const dates = STATIONS.map((st) => ymd(colText(columns(p), st.done))).filter(Boolean).map(dayNumber);
+      if (!dates.length) continue;
+      if ((lo !== null && Math.max(...dates) < lo) || (hi !== null && Math.min(...dates) > hi)) continue;
+      seenPass.add(p.id);
+      passes.push(p);
+    }
 
     const engFiles = ((single.eng && single.eng.assets) || []).slice().sort(byCreated);
     const oppFiles = ((single.opp && single.opp.assets) || []).slice();
@@ -299,13 +385,56 @@
 
     return {
       id: shop.id,
+      url: ITEM_URL + shop.id,
       job: shop.name,
       type: colText(cols, SHOP_JOB_TYPE),
       customer: colText(cols, SHOP_CUSTOMER),
-      completed: ymd(colText(cols, SHOP_DATE_COMPLETED)),
+      completed,
       milestones,
       outOfOrder: outOfOrder(milestones),
+      stations: stationBreakdown(passes, milestones["Job to floor"][0]),
     };
+  }
+
+  /**
+   * Days at each Panda 3 station. "days" runs from the previous station's
+   * completion (Job to floor for the first) to this station's completion, so it
+   * includes waiting time; "handsOn" is start to completion where a start date
+   * was recorded. For the finish vendor, days = sent to received.
+   */
+  function stationBreakdown(passes, jobToFloor) {
+    const rows = [];
+    let prevDone = jobToFloor || null;
+    let prevName = "Job to floor";
+    for (const station of STATIONS) {
+      let best = null;
+      const doneDates = new Set();
+      for (const p of passes) {
+        const pc = columns(p);
+        const done = ymd(colText(pc, station.done));
+        if (!done) continue;
+        doneDates.add(done);
+        const start = station.start ? ymd(colText(pc, station.start)) : null;
+        if (!best || done > best.done) best = { done, start: start && start <= done ? start : null };
+      }
+      if (!best) continue;
+      const days = station.vendor
+        ? (best.start ? dayNumber(best.done) - dayNumber(best.start) : null)
+        : (prevDone ? dayNumber(best.done) - dayNumber(prevDone) : null);
+      rows.push({
+        key: station.key,
+        name: station.name,
+        start: best.start,
+        done: best.done,
+        days,
+        from: station.vendor ? "Sent to vendor" : prevName,
+        handsOn: !station.vendor && best.start ? dayNumber(best.done) - dayNumber(best.start) : null,
+        passes: doneDates.size,
+      });
+      prevDone = best.done;
+      prevName = station.name;
+    }
+    return rows;
   }
 
   function outOfOrder(milestones) {
@@ -353,8 +482,9 @@
   }
 
   /** Everything the page shows, from the raw monday items. */
-  function buildReport(items) {
-    const all = items.map(jobRow);
+  function buildReport(items, panda3Items) {
+    const index = indexPanda3(panda3Items);
+    const all = items.map((item) => jobRow(item, index));
     const rows = all.filter((j) => JOB_TYPES.includes(j.type))
       .sort((a, b) => ((a.completed || "9999") + a.job < (b.completed || "9999") + b.job ? -1 : 1));
     const skipped = all.filter((j) => !JOB_TYPES.includes(j.type));
@@ -375,7 +505,21 @@
       }
     });
 
-    return { rows, skipped, groups, months, summary, notes: buildNotes(groups) };
+    const stationSummary = [];
+    for (const station of STATIONS) {
+      for (const [group, jobs] of groups) {
+        const value = (j) => {
+          const row = j.stations.find((r) => r.key === station.key);
+          return row ? row.days : null;
+        };
+        if (!jobs.some((j) => value(j) !== null)) continue;
+        const byMonth = {};
+        for (const m of months) byMonth[m] = stats(jobs.filter((j) => (j.completed || "").startsWith(m)).map(value));
+        stationSummary.push({ key: station.key, measure: station.name, group, byMonth, all: stats(jobs.map(value)) });
+      }
+    }
+
+    return { rows, skipped, groups, months, summary, stationSummary, notes: buildNotes(groups) };
   }
 
   function buildNotes(groups) {
@@ -408,8 +552,8 @@
   }
 
   const api = {
-    MILESTONES, DURATIONS, GROUPS, NO_ENGINEERING, ORDER_EXEMPT,
-    fetchJobs, jobRow, durations, stats, buildReport, reportGroup,
+    MILESTONES, DURATIONS, STATIONS, GROUPS, NO_ENGINEERING, ORDER_EXEMPT,
+    fetchJobs, fetchPanda3, itemFields, jobRow, durations, stats, buildReport, reportGroup,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.MilestoneReport = api;

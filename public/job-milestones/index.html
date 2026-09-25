@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Job Milestone Report</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="page-header">
+    <div>
+      <p class="crumb"><a href="../">Leadership Boards</a></p>
+      <h1>Job Milestone Report</h1>
+      <p class="subtitle">Cycle times for jobs completed on the Shop Updates board, pulled live from monday.com.</p>
+    </div>
+    <button type="button" id="signout" class="link" hidden>Sign out</button>
+  </header>
+
+  <main>
+    <section class="card signin" id="signin" hidden aria-label="Sign in">
+      <h2>Sign in</h2>
+      <form id="signin-form">
+        <label>Team password <input type="password" id="password" autocomplete="current-password" required></label>
+        <button type="submit" class="primary">Sign in</button>
+        <span id="signin-status" role="status" aria-live="polite"></span>
+      </form>
+    </section>
+
+    <div id="app" hidden>
+      <section class="card controls" aria-label="Report settings">
+        <div class="field-row">
+          <label>From <input type="date" id="from"></label>
+          <label>To <input type="date" id="to"></label>
+          <div class="presets" role="group" aria-label="Quick ranges">
+            <button type="button" data-preset="ytd">Year to date</button>
+            <button type="button" data-preset="last3">Last 3 months</button>
+            <button type="button" data-preset="lastmonth">Last month</button>
+            <button type="button" data-preset="thismonth">This month</button>
+          </div>
+          <button type="button" id="load" class="primary">Load report</button>
+          <button type="button" id="download" disabled>Download Excel</button>
+        </div>
+        <span id="status" role="status" aria-live="polite"></span>
+      </section>
+
+      <nav class="tabs" role="tablist" hidden id="tabs">
+        <button type="button" role="tab" aria-selected="true" data-tab="summary">Summary</button>
+        <button type="button" role="tab" aria-selected="false" data-tab="milestones">Milestones</button>
+        <button type="button" role="tab" aria-selected="false" data-tab="cycle">Cycle times</button>
+      </nav>
+
+      <section id="summary" class="tab-panel" hidden></section>
+      <section id="milestones" class="tab-panel" hidden></section>
+      <section id="cycle" class="tab-panel" hidden></section>
+    </div>
+  </main>
+
+  <dialog id="job-dialog" aria-labelledby="job-title">
+    <div class="dialog-head">
+      <h2 id="job-title"></h2>
+      <button type="button" class="link" id="job-close" aria-label="Close">Close ✕</button>
+    </div>
+    <div id="job-body"></div>
+  </dialog>
+
+  <script src="vendor/xlsx.full.min.js" defer></script>
+  <script src="report.js" defer></script>
+  <script src="app.js" defer></script>
+</body>
+</html>
