@@ -1,0 +1,145 @@
+:root {
+  --bg: #f4f6fa;
+  --card: #ffffff;
+  --ink: #1d2433;
+  --muted: #5d6679;
+  --line: #d9dee8;
+  --accent: #1f3864;
+  --accent-ink: #ffffff;
+  --head: #e8edf6;
+  --section: #d9e1f2;
+  --late: #f8cbad;
+  --late-ink: #7a2b0c;
+  --exempt: #f2f2f2;
+  --warn: #c00000;
+  --ok: #2e7d32;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12151c;
+    --card: #1b202b;
+    --ink: #e6e9ef;
+    --muted: #9aa3b5;
+    --line: #2e3544;
+    --accent: #5b82c9;
+    --head: #242b39;
+    --section: #2a3550;
+    --late: #6b2f16;
+    --late-ink: #ffd9c7;
+    --exempt: #232833;
+    --warn: #ff8a80;
+    --ok: #81c784;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+}
+
+.page-header { padding: 20px 24px 4px; }
+.page-header h1 { margin: 0; font-size: 22px; }
+.subtitle { margin: 4px 0 0; color: var(--muted); }
+
+main { padding: 12px 24px 40px; }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.card h2 { margin: 0 0 6px; font-size: 17px; }
+.range { color: var(--muted); font-weight: normal; font-size: 14px; margin-left: 6px; }
+.meta { margin: 0 0 10px; color: var(--muted); }
+.warn { margin: 0 0 10px; color: var(--warn); font-weight: 600; }
+
+.controls .field-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  align-items: flex-end;
+  margin-bottom: 12px;
+}
+.controls label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; }
+.controls label.check { flex-direction: row; align-items: center; font-weight: normal; }
+.controls label.token { flex: 1 1 320px; }
+
+input[type="date"], input[type="password"] {
+  font: inherit;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--ink);
+}
+
+button {
+  font: inherit;
+  padding: 7px 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--ink);
+  cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: 0.5; cursor: default; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.presets button { padding: 5px 10px; font-size: 13px; }
+
+#status { color: var(--muted); }
+#status.error { color: var(--warn); font-weight: 600; }
+#status.ok { color: var(--ok); }
+
+.help summary { cursor: pointer; color: var(--muted); }
+.help p { margin: 6px 0 0; color: var(--muted); max-width: 70ch; }
+
+.tabs { display: flex; gap: 4px; margin-bottom: -1px; }
+.tabs button { border-radius: 6px 6px 0 0; border-bottom: none; }
+.tabs button[aria-selected="true"] { background: var(--card); font-weight: 600; border-color: var(--line); }
+.tabs button[aria-selected="false"] { background: transparent; border-color: transparent; color: var(--muted); }
+
+.table-wrap { overflow: auto; max-height: 75vh; border: 1px solid var(--line); border-radius: 6px; }
+
+table { border-collapse: separate; border-spacing: 0; font-size: 13px; }
+th, td { padding: 5px 8px; border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); white-space: nowrap; }
+thead th {
+  position: sticky;
+  top: 0;
+  background: var(--head);
+  z-index: 2;
+  font-weight: 600;
+  vertical-align: bottom;
+}
+table.grid thead th { white-space: normal; min-width: 76px; max-width: 110px; }
+thead tr:nth-child(2) th { top: 29px; }
+th.sticky { position: sticky; left: 0; background: var(--card); z-index: 1; text-align: left; }
+thead th.sticky { background: var(--head); z-index: 3; }
+tbody th { font-weight: 600; }
+td { text-align: center; }
+td.customer, td.group { text-align: left; }
+td.avg { font-weight: 700; }
+td.n { color: var(--muted); }
+th.month { text-align: center; border-bottom: 1px solid var(--line); }
+th.month.all { background: var(--section); }
+table.summary tbody th { white-space: normal; min-width: 240px; }
+
+tr.section th { background: var(--section); text-align: left; font-size: 13px; }
+td.late { background: var(--late); color: var(--late-ink); font-weight: 600; }
+td.exempt { background: var(--exempt); }
+td.has-note { text-decoration: underline dotted; text-underline-offset: 3px; cursor: help; }
+
+ul.notes { margin: 0; padding-left: 20px; }
+ul.notes li { margin-bottom: 4px; }
+
+@media (max-width: 640px) {
+  main, .page-header { padding-left: 16px; padding-right: 16px; }
+}

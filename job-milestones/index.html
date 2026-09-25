@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Job Milestone Report</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="page-header">
+    <h1>Job Milestone Report</h1>
+    <p class="subtitle">Cycle times for jobs completed on the Shop Updates board, pulled live from monday.com.</p>
+  </header>
+
+  <main>
+    <section class="card controls" aria-label="Report settings">
+      <div class="field-row">
+        <label>From <input type="date" id="from"></label>
+        <label>To <input type="date" id="to"></label>
+        <div class="presets" role="group" aria-label="Quick ranges">
+          <button type="button" data-preset="ytd">Year to date</button>
+          <button type="button" data-preset="last3">Last 3 months</button>
+          <button type="button" data-preset="lastmonth">Last month</button>
+          <button type="button" data-preset="thismonth">This month</button>
+        </div>
+      </div>
+      <div class="field-row">
+        <label class="token">monday.com API token
+          <input type="password" id="token" autocomplete="off" placeholder="Paste your monday.com API token">
+        </label>
+        <label class="check"><input type="checkbox" id="remember"> Remember on this computer</label>
+      </div>
+      <div class="field-row actions">
+        <button type="button" id="load" class="primary">Load report</button>
+        <button type="button" id="download" disabled>Download Excel</button>
+        <span id="status" role="status" aria-live="polite"></span>
+      </div>
+      <details class="help">
+        <summary>Where do I get the token?</summary>
+        <p>In monday.com, click your profile picture, then <b>Developers</b> &rarr; <b>My access tokens</b> &rarr; <b>Show</b>, and copy it here.
+          The token is only sent to monday.com from this browser. It is never stored on this website, and is only kept on
+          this computer if you tick "Remember".</p>
+      </details>
+    </section>
+
+    <nav class="tabs" role="tablist" hidden id="tabs">
+      <button type="button" role="tab" aria-selected="true" data-tab="summary">Summary</button>
+      <button type="button" role="tab" aria-selected="false" data-tab="milestones">Milestones</button>
+      <button type="button" role="tab" aria-selected="false" data-tab="cycle">Cycle times</button>
+    </nav>
+
+    <section id="summary" class="tab-panel" hidden></section>
+    <section id="milestones" class="tab-panel" hidden></section>
+    <section id="cycle" class="tab-panel" hidden></section>
+  </main>
+
+  <script src="vendor/xlsx.full.min.js" defer></script>
+  <script src="report.js" defer></script>
+  <script src="app.js" defer></script>
+</body>
+</html>
