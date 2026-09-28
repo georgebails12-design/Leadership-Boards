@@ -5,7 +5,7 @@
 # - installs Node.js if it's missing
 # - asks for the n8n API key (the "Leadership Boards API key" credential in n8n)
 #   and the team password, stored only in /etc/leadership-boards.env (root only)
-# - installs the leadership-boards service on 127.0.0.1:8040 and an updater that
+# - installs the leadership-boards service on 0.0.0.0:8040 and an updater that
 #   pulls new commits from GitHub every 2 minutes (same pattern as the PO app)
 # - adds boards.pandawd.online to nginx (with an HTTPS certificate) or Caddy
 #
@@ -63,11 +63,19 @@ N8N_API_KEY=$N8N_KEY
 REPORT_PASSWORD=$TEAM_PASSWORD
 SESSION_SECRET=$SESSION_SECRET
 PORT=$PORT
-HOST=127.0.0.1
+HOST=0.0.0.0
 EOF
   chmod 600 "$ENV_FILE"
   unset N8N_KEY TEAM_PASSWORD
   echo "Saved. Everyone will need to sign in again."
+fi
+
+# Listen on all interfaces so a Caddy running in Docker can reach the app
+# through the host gateway (a 127.0.0.1 listener is invisible to containers).
+if grep -q '^HOST=' "$ENV_FILE"; then
+  sed -i 's/^HOST=.*/HOST=0.0.0.0/' "$ENV_FILE"
+else
+  echo "HOST=0.0.0.0" >> "$ENV_FILE"
 fi
 
 # --- service ---------------------------------------------------------------
@@ -128,7 +136,7 @@ systemctl restart leadership-boards
 systemctl enable --now leadership-boards-update.timer >/dev/null
 sleep 2
 if curl -fsS "http://127.0.0.1:$PORT/healthz" >/dev/null; then
-  echo "App is running on 127.0.0.1:$PORT"
+  echo "App is running on 0.0.0.0:$PORT"
 else
   echo "App didn't start; recent log:"; journalctl -u leadership-boards -n 30 --no-pager; exit 1
 fi

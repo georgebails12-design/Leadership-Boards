@@ -55,12 +55,16 @@ curl -fsSL https://raw.githubusercontent.com/georgebails12-design/Leadership-Boa
 ```
 
 It installs Node.js if needed, asks for the n8n API key and the team
-password, runs the app as the `leadership-boards` service on 127.0.0.1:8040,
+password, runs the app as the `leadership-boards` service on 0.0.0.0:8040
+(so a Caddy running in Docker can reach it through the host gateway),
 installs an updater timer that deploys new commits on `main` every 2 minutes
 (with a health check and automatic rollback), and adds `boards.pandawd.online`
 to nginx with an HTTPS certificate (or to Caddy).
 
 - Change the key or password: re-run with `bash -s -- --reset-secrets`.
+- Port 8040 should not be reachable from the internet directly: allow it only
+  from the Docker networks (e.g. `ufw deny 8040` after a
+  `ufw allow from 172.16.0.0/12 to any port 8040`).
 - Logs: `journalctl -u leadership-boards` and `journalctl -u leadership-boards-update`.
 - The DNS record `boards.pandawd.online → 45.82.73.224` is in Hostinger DNS.
 
